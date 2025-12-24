@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react'; // Tambahkan Suspense
 import { supabase } from '@/lib/supabase';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { CreditCard, Loader2, ArrowRight, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function PaymentPage() {
+// 1. Pindahkan logika utama ke komponen terpisah
+function PaymentContent() {
     const [loading, setLoading] = useState(false);
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -15,13 +16,11 @@ export default function PaymentPage() {
     const handlePaymentAndSignUp = async () => {
         setLoading(true);
         try {
-            // 1. Ambil data sementara dari storage
             const rawData = sessionStorage.getItem('pending_registration');
             if (!rawData) throw new Error("Data pendaftaran hilang. Silakan daftar ulang.");
 
             const { email, password, name: fullName, userType } = JSON.parse(rawData);
 
-            // 2. Registrasi Akun Auth ke Supabase
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email,
                 password,
@@ -30,7 +29,6 @@ export default function PaymentPage() {
 
             if (authError) throw authError;
 
-            // 3. Masukkan ke tabel providers dengan status AKTIF (true)
             if (authData.user) {
                 const { error: dbError } = await supabase.from('providers').insert([
                     {
@@ -44,11 +42,9 @@ export default function PaymentPage() {
 
                 if (dbError) throw dbError;
 
-                // 4. Sukses! Hapus data sementara
                 sessionStorage.removeItem('pending_registration');
                 toast.success("Pembayaran Berhasil! Selamat datang Mitra.");
 
-                // Beri jeda sebentar agar user melihat toast
                 setTimeout(() => {
                     router.push('/dashboard');
                     router.refresh();
@@ -65,7 +61,7 @@ export default function PaymentPage() {
         <div className="min-h-screen bg-[#FBFBFC] flex items-center justify-center p-4">
             <div className="w-full max-w-[400px] bg-white rounded-[2.5rem] p-10 shadow-xl border border-slate-100 text-center">
                 <div className="w-16 h-16 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto mb-6 text-white shadow-xl shadow-blue-100">
-                    <CreditCard size={32} />
+                    <div className="p-4"><CreditCard size={32} /></div>
                 </div>
 
                 <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase italic tracking-tighter">Aktivasi Mitra</h2>
@@ -95,5 +91,18 @@ export default function PaymentPage() {
                 </div>
             </div>
         </div>
+    );
+}
+
+// 2. Fungsi Utama yang diexport harus dibungkus Suspense
+export default function PaymentPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-white">
+                <Loader2 className="animate-spin text-blue-600" size={40} />
+            </div>
+        }>
+            <PaymentContent />
+        </Suspense>
     );
 }
